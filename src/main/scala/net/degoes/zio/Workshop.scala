@@ -2,21 +2,20 @@ package net.degoes.zio
 
 import zio._
 import java.text.NumberFormat
-import java.nio.charset.StandardCharsets
 
 object ZIOTypes {
   type ??? = Nothing
 
   /**
-    * EXERCISE 1
-    *
-    * Provide definitions for the ZIO type aliases below.
-    */
-  type Task[+A] = ???
-  type UIO[+A] = ???
-  type RIO[-R, +A] = ???
-  type IO[+E, +A] = ???
-  type URIO[-R, +A] = ???
+   * EXERCISE 1
+   *
+   * Provide definitions for the ZIO type aliases below.
+   */
+  type Task[+A]     = ZIO[Any, Nothing, A]
+  type UIO[+A]      = ZIO[Any, Nothing, A]
+  type RIO[-R, +A]  = ZIO[R, Throwable, A]
+  type IO[+E, +A]   = ZIO[Any, E, A]
+  type URIO[-R, +A] = ZIO[R, Nothing, A]
 }
 
 object HelloWorld extends App {
@@ -24,12 +23,12 @@ object HelloWorld extends App {
   import zio.console._
 
   /**
-    * EXERCISE 2
-    *
-    * Implement a simple "Hello World!" program using the effect returned by `putStrLn`.
-    */
+   * EXERCISE 2
+   *
+   * Implement a simple "Hello World!" program using the effect returned by `putStrLn`.
+   */
   def run(args: List[String]): ZIO[ZEnv, Nothing, Int] =
-    ???
+    putStrLn("Hello World") as 0
 }
 
 object PrintSequence extends App {
@@ -37,13 +36,15 @@ object PrintSequence extends App {
   import zio.console._
 
   /**
-    * EXERCISE 3
-    *
-    * Using `*>` (`zipRight`), compose a sequence of `putStrLn` effects to
-    * produce an effect that prints three lines of text to the console.
-    */
+   * EXERCISE 3
+   *
+   * Using `*>` (`zipRight`), compose a sequence of `putStrLn` effects to
+   * produce an effect that prints three lines of text to the console.
+   */
   def run(args: List[String]): ZIO[ZEnv, Nothing, Int] =
-    ???
+    putStrLn("Hello") *>
+      putStrLn("ZIO") *>
+      putStrLn("World") as 0
 }
 
 object ErrorRecovery extends App {
@@ -57,13 +58,13 @@ object ErrorRecovery extends App {
       putStrLn("This will NEVER be printed!")
 
   /**
-    * EXERCISE 4
-    *
-    * Using `ZIO#orElse` or `ZIO#fold`, have the `run` function compose the
-    * preceding `failed` effect into the effect that `run` returns.
-    */
+   * EXERCISE 4
+   *
+   * Using `ZIO#orElse` or `ZIO#fold`, have the `run` function compose the
+   * preceding `failed` effect into the effect that `run` returns.
+   */
   def run(args: List[String]): ZIO[ZEnv, Nothing, Int] =
-    ???
+    failed.catchAll(err => putStrLn(err) as 1) as 0
 }
 
 object Looping extends App {
@@ -71,29 +72,30 @@ object Looping extends App {
   import zio.console._
 
   /**
-    * EXERCISE 5
-    *
-    * Implement a `repeat` combinator using `flatMap` and recursion.
-    */
-  def repeat[R, E, A](n: Int)(effect: ZIO[R, E, A]): ZIO[R, E, A] =
-    ???
+   * EXERCISE 5
+   *
+   * Implement a `repeat` combinator using `flatMap` and recursion.
+   */
+  def repeat[R, E, A](n: Int)(task: ZIO[R, E, A]): ZIO[R, E, A] =
+    if (n <= 1) task
+    else task.flatMap(_ => repeat(n - 1)(task))
 
   def run(args: List[String]): ZIO[ZEnv, Nothing, Int] =
-    repeat(100)(putStrLn("All work and no play makes Jack a dull boy")) as 0
+    repeat(10)(putStrLn("All work and no play makes Jack a dull boy")) as 0
 }
 
 object EffectConversion extends App {
 
   /**
-    * EXERCISE 6
-    *
-    * Using ZIO.effect, convert the side-effecting of `println` into a pure
-    * functional effect.
-    */
-  def myPrintLn(line: String): Task[Unit] = UIO(println(line))
+   * EXERCISE 6
+   *
+   * Using ZIO.effect, convert the side-effecting of `println` into a pure
+   * functional effect.
+   */
+  def myPrintLn(line: String): Task[Unit] = ZIO.effect(println(line))
 
-  def run(args: List[String]) =
-    ???
+  def run(args: List[String]): ZIO[ZEnv, Nothing, Int] =
+    (myPrintLn("Hello Again!") as 0) orElse ZIO.succeed(1)
 }
 
 object ErrorNarrowing extends App {
@@ -106,20 +108,20 @@ object ErrorNarrowing extends App {
   }
 
   /**
-    * EXERCISE 7
-    *
-    * Using `ZIO#refineToOrDie`, narrow the error type of the following
-    * effect to IOException.
-    */
-  val myReadLine: IO[IOException, String] = ???
+   * EXERCISE 7
+   *
+   * Using `ZIO#refineToOrDie`, narrow the error type of the following
+   * effect to IOException.
+   */
+  val myReadLine: IO[IOException, String] = ZIO(readLine()).refineToOrDie[IOException]
 
   def myPrintLn(line: String): UIO[Unit] = UIO(println(line))
 
   def run(args: List[String]): ZIO[ZEnv, Nothing, Int] =
     (for {
-      _ <- myPrintLn("What is your name?")
+      _    <- myPrintLn("What is your name?")
       name <- myReadLine
-      _ <- myPrintLn(s"Good to meet you, ${name}")
+      _    <- myPrintLn(s"Good to meet you, ${name}")
     } yield 0) orElse ZIO.succeed(1)
 }
 
@@ -129,13 +131,17 @@ object PromptName extends App {
   import zio.console._
 
   /**
-    * EXERCISE 8
-    *
-    * Using `ZIO#flatMap`, implement a simple program that asks the user for
-    * their name (using `getStrLn`), and then prints it out to the user (using `putStrLn`).
-    */
+   * EXERCISE 8
+   *
+   * Using `ZIO#flatMap`, implement a simple program that asks the user for
+   * their name (using `getStrLn`), and then prints it out to the user (using `putStrLn`).
+   */
   def run(args: List[String]): ZIO[ZEnv, Nothing, Int] =
-    ???
+    (for {
+      _    <- putStrLn("What's your name?")
+      name <- getStrLn
+      _    <- putStrLn(s"Hi $name")
+    } yield ()).fold(_ => 1, _ => 0)
 }
 
 object NumberGuesser extends App {
@@ -148,11 +154,11 @@ object NumberGuesser extends App {
     else putStrLn(s"You did not guess correctly. The answer was ${random}")
 
   /**
-    * EXERCISE 9
-    *
-    * Choose a random number (using `nextInt`), and then ask the user to guess
-    * the number, feeding their response to `analyzeAnswer`, above.
-    */
+   * EXERCISE 9
+   *
+   * Choose a random number (using `nextInt`), and then ask the user to guess
+   * the number, feeding their response to `analyzeAnswer`, above.
+   */
   def run(args: List[String]): ZIO[ZEnv, Nothing, Int] =
     ???
 }
@@ -165,12 +171,12 @@ object AlarmApp extends App {
   import java.util.concurrent.TimeUnit
 
   /**
-    * EXERCISE 10
-    *
-    * Create an effect that will get a `Duration` from the user, by prompting
-    * the user to enter a decimal number of seconds. Use `refineOrDie` to
-    * narrow the error type as necessary.
-    */
+   * EXERCISE 10
+   *
+   * Create an effect that will get a `Duration` from the user, by prompting
+   * the user to enter a decimal number of seconds. Use `refineOrDie` to
+   * narrow the error type as necessary.
+   */
   lazy val getAlarmDuration: ZIO[Console, IOException, Duration] = {
     def parseDuration(input: String): IO[NumberFormatException, Duration] =
       ???
@@ -179,19 +185,19 @@ object AlarmApp extends App {
       ???
 
     for {
-      _ <- putStrLn("Please enter the number of seconds to sleep: ")
-      input <- getStrLn
+      _        <- putStrLn("Please enter the number of seconds to sleep: ")
+      input    <- getStrLn
       duration <- parseDuration(input) orElse fallback(input)
     } yield duration
   }
 
   /**
-    * EXERCISE 11
-    *
-    * Create a program that asks the user for a number of seconds to sleep,
-    * sleeps the specified number of seconds using ZIO.sleep(d), and then
-    * prints out a wakeup alarm message, like "Time to wakeup!!!".
-    */
+   * EXERCISE 11
+   *
+   * Create a program that asks the user for a number of seconds to sleep,
+   * sleeps the specified number of seconds using ZIO.sleep(d), and then
+   * prints out a wakeup alarm message, like "Time to wakeup!!!".
+   */
   def run(args: List[String]): ZIO[ZEnv, Nothing, Int] =
     ???
 }
@@ -203,20 +209,20 @@ object Cat extends App {
   import java.io.IOException
 
   /**
-    * EXERCISE 12
-    *
-    * Implement a function to read a file on the blocking thread pool, storing
-    * the result into a string.
-    */
+   * EXERCISE 12
+   *
+   * Implement a function to read a file on the blocking thread pool, storing
+   * the result into a string.
+   */
   def readFile(file: String): ZIO[Blocking, IOException, String] =
     ???
 
   /**
-    * EXERCISE 13
-    *
-    * Implement a version of the command-line utility "cat", which dumps the
-    * contents of the specified file to standard output.
-    */
+   * EXERCISE 13
+   *
+   * Implement a version of the command-line utility "cat", which dumps the
+   * contents of the specified file to standard output.
+   */
   def run(args: List[String]): ZIO[ZEnv, Nothing, Int] =
     ???
 }
@@ -225,23 +231,23 @@ object CatIncremental extends App {
 
   import zio.console._
   import zio.blocking._
-  import java.io.{IOException, InputStream, FileInputStream}
+  import java.io.{ FileInputStream, IOException, InputStream }
 
   /**
-    * BONUS EXERCISE
-    *
-    * Implement a `blockingIO` combinator to use in subsequent exercises.
-    */
+   * BONUS EXERCISE
+   *
+   * Implement a `blockingIO` combinator to use in subsequent exercises.
+   */
   def blockingIO[A](a: => A): ZIO[Blocking, IOException, A] =
     ???
 
   /**
-    * EXERCISE 14
-    *
-    * Implement all missing methods of `FileHandle`. Be sure to do all work on
-    * the blocking thread pool.
-    */
-  final case class FileHandle private(private val is: InputStream) {
+   * EXERCISE 14
+   *
+   * Implement all missing methods of `FileHandle`. Be sure to do all work on
+   * the blocking thread pool.
+   */
+  final case class FileHandle private (private val is: InputStream) {
     final def close: ZIO[Blocking, IOException, Unit] = ???
 
     final def read: ZIO[Blocking, IOException, Option[Chunk[Byte]]] =
@@ -256,12 +262,12 @@ object CatIncremental extends App {
     ???
 
   /**
-    * EXERCISE 15
-    *
-    * Implement an incremental version of the `cat` utility, using `ZIO#bracket`
-    * or `ZManaged` to ensure the file is closed in the event of error or
-    * interruption.
-    */
+   * EXERCISE 15
+   *
+   * Implement an incremental version of the `cat` utility, using `ZIO#bracket`
+   * or `ZManaged` to ensure the file is closed in the event of error or
+   * interruption.
+   */
   def run(args: List[String]): ZIO[ZEnv, Nothing, Int] =
     args match {
       case file :: Nil =>
@@ -290,20 +296,20 @@ object AlarmAppImproved extends App {
     val fallback = putStrLn("You didn't enter the number of seconds!") *> getAlarmDuration
 
     for {
-      _ <- putStrLn("Please enter the number of seconds to sleep: ")
-      input <- getStrLn
+      _        <- putStrLn("Please enter the number of seconds to sleep: ")
+      input    <- getStrLn
       duration <- parseDuration(input) orElse fallback
     } yield duration
   }
 
   /**
-    * EXERCISE 16
-    *
-    * Create a program that asks the user for a number of seconds to sleep,
-    * sleeps the specified number of seconds using ZIO.sleep(d), concurrently
-    * prints a dot every second that the alarm is sleeping for, and then
-    * prints out a wakeup alarm message, like "Time to wakeup!!!".
-    */
+   * EXERCISE 16
+   *
+   * Create a program that asks the user for a number of seconds to sleep,
+   * sleeps the specified number of seconds using ZIO.sleep(d), concurrently
+   * prints a dot every second that the alarm is sleeping for, and then
+   * prints out a wakeup alarm message, like "Time to wakeup!!!".
+   */
   def run(args: List[String]): ZIO[ZEnv, Nothing, Int] =
     ???
 }
@@ -317,39 +323,39 @@ object ComputePi extends App {
   import zio.stm._
 
   /**
-    * Some state to keep track of all points inside a circle,
-    * and total number of points.
-    */
+   * Some state to keep track of all points inside a circle,
+   * and total number of points.
+   */
   final case class PiState(
-                            inside: Ref[Long],
-                            total: Ref[Long]
-                          )
+    inside: Ref[Long],
+    total: Ref[Long]
+  )
 
   /**
-    * A function to estimate pi.
-    */
+   * A function to estimate pi.
+   */
   def estimatePi(inside: Long, total: Long): Double =
     (inside.toDouble / total.toDouble) * 4.0
 
   /**
-    * A helper function that determines if a point lies in
-    * a circle of 1 radius.
-    */
+   * A helper function that determines if a point lies in
+   * a circle of 1 radius.
+   */
   def insideCircle(x: Double, y: Double): Boolean =
     Math.sqrt(x * x + y * y) <= 1.0
 
   /**
-    * An effect that computes a random (x, y) point.
-    */
+   * An effect that computes a random (x, y) point.
+   */
   val randomPoint: ZIO[Random, Nothing, (Double, Double)] =
     nextDouble zip nextDouble
 
   /**
-    * EXERCISE 17
-    *
-    * Build a multi-fiber program that estimates the value of `pi`. Print out
-    * ongoing estimates continuously until the estimation is complete.
-    */
+   * EXERCISE 17
+   *
+   * Build a multi-fiber program that estimates the value of `pi`. Print out
+   * ongoing estimates continuously until the estimation is complete.
+   */
   def run(args: List[String]): ZIO[ZEnv, Nothing, Int] =
     ???
 }
@@ -360,46 +366,46 @@ object StmSwap extends App {
   import zio.stm._
 
   /**
-    * EXERCISE 18
-    *
-    * Demonstrate the following code does not reliably swap two values in the
-    * presence of concurrency.
-    */
+   * EXERCISE 18
+   *
+   * Demonstrate the following code does not reliably swap two values in the
+   * presence of concurrency.
+   */
   def exampleRef = {
     def swap[A](ref1: Ref[A], ref2: Ref[A]): UIO[Unit] =
       for {
         v1 <- ref1.get
         v2 <- ref2.get
-        _ <- ref2.set(v1)
-        _ <- ref1.set(v2)
+        _  <- ref2.set(v1)
+        _  <- ref1.set(v2)
       } yield ()
 
     for {
-      ref1 <- Ref.make(100)
-      ref2 <- Ref.make(0)
+      ref1   <- Ref.make(100)
+      ref2   <- Ref.make(0)
       fiber1 <- swap(ref1, ref2).repeat(Schedule.recurs(100)).fork
       fiber2 <- swap(ref2, ref1).repeat(Schedule.recurs(100)).fork
-      _ <- (fiber1 zip fiber2).join
-      value <- (ref1.get zipWith ref2.get) (_ + _)
+      _      <- (fiber1 zip fiber2).join
+      value  <- (ref1.get zipWith ref2.get)(_ + _)
     } yield value
   }
 
   /**
-    * EXERCISE 19
-    *
-    * Using `STM`, implement a safe version of the swap function.
-    */
+   * EXERCISE 19
+   *
+   * Using `STM`, implement a safe version of the swap function.
+   */
   def exampleStm = {
     def swap[A](ref1: TRef[A], ref2: TRef[A]): UIO[Unit] =
       ???
 
     for {
-      ref1 <- TRef.make(100).commit
-      ref2 <- TRef.make(0).commit
+      ref1   <- TRef.make(100).commit
+      ref2   <- TRef.make(0).commit
       fiber1 <- swap(ref1, ref2).repeat(Schedule.recurs(100)).fork
       fiber2 <- swap(ref2, ref1).repeat(Schedule.recurs(100)).fork
-      _ <- (fiber1 zip fiber2).join
-      value <- (ref1.get zipWith ref2.get) (_ + _).commit
+      _      <- (fiber1 zip fiber2).join
+      value  <- (ref1.get zipWith ref2.get)(_ + _).commit
     } yield value
   }
 
@@ -413,12 +419,12 @@ object StmLock extends App {
   import zio.stm._
 
   /**
-    * EXERCISE 20
-    *
-    * Using STM, implement a simple binary lock by implementing the creation,
-    * acquisition, and release methods.
-    */
-  class Lock private(tref: TRef[Boolean]) {
+   * EXERCISE 20
+   *
+   * Using STM, implement a simple binary lock by implementing the creation,
+   * acquisition, and release methods.
+   */
+  class Lock private (tref: TRef[Boolean]) {
     def acquire: UIO[Unit] = ???
 
     def release: UIO[Unit] = ???
@@ -431,13 +437,13 @@ object StmLock extends App {
     (for {
       lock <- Lock.make
       fiber1 <- lock.acquire
-        .bracket_(lock.release)(putStrLn("Bob  : I have the lock!"))
-        .repeat(Schedule.recurs(10))
-        .fork
+                 .bracket_(lock.release)(putStrLn("Bob  : I have the lock!"))
+                 .repeat(Schedule.recurs(10))
+                 .fork
       fiber2 <- lock.acquire
-        .bracket_(lock.release)(putStrLn("Sarah: I have the lock!"))
-        .repeat(Schedule.recurs(10))
-        .fork
+                 .bracket_(lock.release)(putStrLn("Sarah: I have the lock!"))
+                 .repeat(Schedule.recurs(10))
+                 .fork
       _ <- (fiber1 zip fiber2).join
     } yield 0) as 1
 }
@@ -446,14 +452,14 @@ object StmQueue extends App {
 
   import zio.console._
   import zio.stm._
-  import scala.collection.immutable.{Queue => ScalaQueue}
+  import scala.collection.immutable.{ Queue => ScalaQueue }
 
   /**
-    * EXERCISE 21
-    *
-    * Using STM, implement a async queue with double back-pressuring.
-    */
-  class Queue[A] private(capacity: Int, queue: TRef[ScalaQueue[A]]) {
+   * EXERCISE 21
+   *
+   * Using STM, implement a async queue with double back-pressuring.
+   */
+  class Queue[A] private (capacity: Int, queue: TRef[ScalaQueue[A]]) {
     def take: UIO[A] = ???
 
     def offer(a: A): UIO[Unit] = ???
@@ -465,8 +471,8 @@ object StmQueue extends App {
   def run(args: List[String]): ZIO[ZEnv, Nothing, Int] =
     for {
       queue <- Queue.make[Int]
-      _ <- ZIO.foreach(0 to 100)(i => queue.offer(i)).fork
-      _ <- ZIO.foreach(0 to 100)(_ => queue.take.flatMap(i => putStrLn(s"Got: ${i}")))
+      _     <- ZIO.foreach(0 to 100)(i => queue.offer(i)).fork
+      _     <- ZIO.foreach(0 to 100)(_ => queue.take.flatMap(i => putStrLn(s"Got: ${i}")))
     } yield 0
 }
 
@@ -476,10 +482,10 @@ object StmLunchTime extends App {
   import zio.stm._
 
   /**
-    * EXERCISE 22
-    *
-    * Using STM, implement the missing methods of Attendee.
-    */
+   * EXERCISE 22
+   *
+   * Using STM, implement the missing methods of Attendee.
+   */
   final case class Attendee(state: TRef[Attendee.State]) {
 
     import Attendee.State._
@@ -492,20 +498,20 @@ object StmLunchTime extends App {
     sealed trait State
     object State {
       case object Starving extends State
-      case object Full extends State
+      case object Full     extends State
     }
   }
 
   /**
-    * EXERCISE 23
-    *
-    * Using STM, implement the missing methods of Table.
-    */
+   * EXERCISE 23
+   *
+   * Using STM, implement the missing methods of Table.
+   */
   final case class Table(seats: TArray[Boolean]) {
     def findEmptySeat: STM[Nothing, Option[Int]] =
       seats
         .fold[(Int, Option[Int])]((0, None)) {
-          case ((index, z@Some(_)), _) => (index + 1, z)
+          case ((index, z @ Some(_)), _) => (index + 1, z)
           case ((index, None), taken) =>
             (index + 1, if (taken) None else Some(index))
         }
@@ -517,21 +523,21 @@ object StmLunchTime extends App {
   }
 
   /**
-    * EXERCISE 24
-    *
-    * Using STM, implement a method that feeds a single attendee.
-    */
+   * EXERCISE 24
+   *
+   * Using STM, implement a method that feeds a single attendee.
+   */
   def feedAttendee(t: Table, a: Attendee): STM[Nothing, Unit] =
     for {
       index <- t.findEmptySeat.collect { case Some(index) => index }
-      _ <- t.takeSeat(index) *> a.feed *> t.vacateSeat(index)
+      _     <- t.takeSeat(index) *> a.feed *> t.vacateSeat(index)
     } yield ()
 
   /**
-    * EXERCISE 25
-    *
-    * Using STM, implement a method that feeds only the starving attendees.
-    */
+   * EXERCISE 25
+   *
+   * Using STM, implement a method that feeds only the starving attendees.
+   */
   def feedStarving(table: Table, list: List[Attendee]): UIO[Unit] =
     ???
 
@@ -541,16 +547,16 @@ object StmLunchTime extends App {
 
     for {
       attendees <- ZIO.foreach(0 to Attendees)(
-        i =>
-          TRef
-            .make[Attendee.State](Attendee.State.Starving)
-            .map(Attendee(_))
-            .commit
-      )
+                    i =>
+                      TRef
+                        .make[Attendee.State](Attendee.State.Starving)
+                        .map(Attendee(_))
+                        .commit
+                  )
       table <- TArray
-        .fromIterable(List.fill(TableSize)(false))
-        .map(Table(_))
-        .commit
+                .fromIterable(List.fill(TableSize)(false))
+                .map(Table(_))
+                .commit
       _ <- feedStarving(table, attendees)
     } yield 0
   }
@@ -563,15 +569,15 @@ object StmPriorityQueue extends App {
   import zio.duration._
 
   /**
-    * EXERCISE 26
-    *
-    * Using STM, design a priority queue, where smaller integers are assumed
-    * to have higher priority than greater integers.
-    */
-  class PriorityQueue[A] private(
-                                  minLevel: TRef[Int],
-                                  map: TMap[Int, TQueue[A]]
-                                ) {
+   * EXERCISE 26
+   *
+   * Using STM, design a priority queue, where smaller integers are assumed
+   * to have higher priority than greater integers.
+   */
+  class PriorityQueue[A] private (
+    minLevel: TRef[Int],
+    map: TMap[Int, TQueue[A]]
+  ) {
     def offer(a: A, priority: Int): STM[Nothing, Unit] = ???
 
     def take: STM[Nothing, A] = ???
@@ -582,7 +588,7 @@ object StmPriorityQueue extends App {
 
   def run(args: List[String]): ZIO[ZEnv, Nothing, Int] =
     (for {
-      _ <- putStrLn("Enter any key to exit...")
+      _     <- putStrLn("Enter any key to exit...")
       queue <- PriorityQueue.make[String].commit
       lowPriority = ZIO.foreach(0 to 100) { i =>
         ZIO.sleep(1.millis) *> queue
@@ -595,10 +601,10 @@ object StmPriorityQueue extends App {
           .commit
       }
       _ <- ZIO.forkAll(List(lowPriority, highPriority)) *> queue.take.commit
-        .flatMap(putStrLn(_))
-        .forever
-        .fork *>
-        getStrLn
+            .flatMap(putStrLn(_))
+            .forever
+            .fork *>
+            getStrLn
     } yield 0).fold(_ => 1, _ => 0)
 }
 
@@ -608,11 +614,11 @@ object StmReentrantLock extends App {
   import zio.stm._
 
   private final case class WriteLock(
-                                      writeCount: Int,
-                                      readCount: Int,
-                                      fiberId: FiberId
-                                    )
-  private final class ReadLock private(readers: Map[Fiber.Id, Int]) {
+    writeCount: Int,
+    readCount: Int,
+    fiberId: FiberId
+  )
+  private final class ReadLock private (readers: Map[Fiber.Id, Int]) {
     def total: Int = readers.values.sum
 
     def noOtherHolder(fiberId: FiberId): Boolean =
@@ -641,10 +647,10 @@ object StmReentrantLock extends App {
   }
 
   /**
-    * EXERCISE 27
-    *
-    * Using STM, implement a reentrant read/write lock.
-    */
+   * EXERCISE 27
+   *
+   * Using STM, implement a reentrant read/write lock.
+   */
   class ReentrantReadWriteLock(data: TRef[Either[ReadLock, WriteLock]]) {
     def writeLocks: UIO[Int] = data.get.map(_.fold(_ => 0, _.writeCount)).commit
 
@@ -682,11 +688,11 @@ object StmDiningPhilosophers extends App {
   final case class Roundtable(seats: Vector[Placement])
 
   /**
-    * EXERCISE
-    *
-    * Using STM, implement the logic of a philosopher to take not one fork, but
-    * both forks when they are both available.
-    */
+   * EXERCISE
+   *
+   * Using STM, implement the logic of a philosopher to take not one fork, but
+   * both forks when they are both available.
+   */
   def takeForks(left: TRef[Option[Fork]], right: TRef[Option[Fork]]): STM[Nothing, (Fork, Fork)] =
     ???
 
@@ -700,8 +706,10 @@ object StmDiningPhilosophers extends App {
     val makeFork = TRef.make[Option[Fork]](Some(Fork))
 
     (for {
-      allForks0 <- STM.foreach(0 to size) { i => makeFork }
-      allForks = allForks0 ++ List(allForks0(0))
+      allForks0 <- STM.foreach(0 to size) { i =>
+                    makeFork
+                  }
+      allForks   = allForks0 ++ List(allForks0(0))
       placements = (allForks zip allForks.drop(1)).map { case (l, r) => Placement(l, r) }
     } yield Roundtable(placements.toVector)).commit
   }
@@ -709,14 +717,14 @@ object StmDiningPhilosophers extends App {
   def eat(philosopher: Int, roundtable: Roundtable): ZIO[Console, Nothing, Unit] = {
     val placement = roundtable.seats(philosopher)
 
-    val left = placement.left
+    val left  = placement.left
     val right = placement.right
 
     for {
       forks <- takeForks(left, right).commit
-      _ <- putStrLn(s"Philosopher ${philosopher} eating...")
-      _ <- putForks(left, right)(forks).commit
-      _ <- putStrLn(s"Philosopher ${philosopher} is done eating")
+      _     <- putStrLn(s"Philosopher ${philosopher} eating...")
+      _     <- putForks(left, right)(forks).commit
+      _     <- putStrLn(s"Philosopher ${philosopher} is done eating")
     } yield ()
   }
 
@@ -724,13 +732,15 @@ object StmDiningPhilosophers extends App {
     val count = 10
 
     def eaters(table: Roundtable): Iterable[ZIO[Console, Nothing, Unit]] =
-      (0 to count).map { index => eat(index, table) }
+      (0 to count).map { index =>
+        eat(index, table)
+      }
 
     for {
       table <- setupTable(count)
       fiber <- ZIO.forkAll(eaters(table))
-      _ <- fiber.join
-      _ <- putStrLn("All philosophers have eaten!")
+      _     <- fiber.join
+      _     <- putStrLn("All philosophers have eaten!")
     } yield 0
   }
 }
@@ -741,17 +751,17 @@ object SimpleActor extends App {
   import zio.stm._
 
   sealed trait Command
-  case object ReadTemperature extends Command
+  case object ReadTemperature                       extends Command
   final case class AdjustTemperature(value: Double) extends Command
 
   type TemperatureActor = Command => Task[Double]
 
   /**
-    * EXERCISE
-    *
-    * Using ZIO Queue and Promise, implement the logic necessary to create an
-    * actor as a function from `Command` to `Task[Double]`.
-    */
+   * EXERCISE
+   *
+   * Using ZIO Queue and Promise, implement the logic necessary to create an
+   * actor as a function from `Command` to `Task[Double]`.
+   */
   def makeActor(initialTemperature: Double): UIO[TemperatureActor] = {
     type Bundle = (Command, Promise[Nothing, Double])
 
@@ -763,31 +773,32 @@ object SimpleActor extends App {
 
     (for {
       actor <- makeActor(0)
-      _ <- ZIO.foreachPar(temperatures) { temp => actor(AdjustTemperature(temp)) }
+      _ <- ZIO.foreachPar(temperatures) { temp =>
+            actor(AdjustTemperature(temp))
+          }
       temp <- actor(ReadTemperature)
-      _ <- putStrLn(s"Final temperature is ${temp}")
+      _    <- putStrLn(s"Final temperature is ${temp}")
     } yield 0) orElse ZIO.succeed(1)
   }
 }
 
-
 object Sharding extends App {
 
   /**
-    * EXERCISE 28
-    *
-    * Create N workers reading from a Queue, if one of them fails, then wait
-    * for the other ones to process their current item, but terminate all the
-    * workers.
-    *
-    * Return the first error, or never return, if there is no error.
-    */
+   * EXERCISE 28
+   *
+   * Create N workers reading from a Queue, if one of them fails, then wait
+   * for the other ones to process their current item, but terminate all the
+   * workers.
+   *
+   * Return the first error, or never return, if there is no error.
+   */
   def shard[R, E, A](
-                      queue: Queue[A],
-                      n: Int,
-                      worker: A => ZIO[R, E, Unit]
-                    ): ZIO[R, Nothing, E] = {
-    val qworker = ZIO.uninterruptible(ZIO.interruptible(queue.take) flatMap worker).forever
+    queue: Queue[A],
+    n: Int,
+    worker: A => ZIO[R, E, Unit]
+  ): ZIO[R, Nothing, E] = {
+    val qworker  = ZIO.uninterruptible(ZIO.interruptible(queue.take) flatMap worker).forever
     val qworkers = List.fill(n)(qworker)
 
     ZIO.collectAllPar(qworkers).flatMap(_.headOption.getOrElse(ZIO.never)).flip
@@ -825,14 +836,15 @@ object CustomEnvironment extends App {
   val effect =
     (for {
       file <- Files.read("build.sbt")
-      _ <- Logging.log(file)
-    } yield ()).provideSome[Files](env =>
-      new Files with Logging {
-        val logging = new Logging.Service {
-          def log(line: String): UIO[Unit] = UIO(println(line))
+      _    <- Logging.log(file)
+    } yield ()).provideSome[Files](
+      env =>
+        new Files with Logging {
+          val logging = new Logging.Service {
+            def log(line: String): UIO[Unit] = UIO(println(line))
+          }
+          val files = env.files
         }
-        val files = env.files
-      }
     )
 
   def run(args: List[String]) = ???
@@ -846,47 +858,47 @@ object Hangman extends App {
   import java.io.IOException
 
   /**
-    * EXERCISE 29
-    *
-    * Implement an effect that gets a single, lower-case character from
-    * the user.
-    */
+   * EXERCISE 29
+   *
+   * Implement an effect that gets a single, lower-case character from
+   * the user.
+   */
   lazy val getChoice: ZIO[Console, IOException, Char] = ???
 
   /**
-    * EXERCISE 30
-    *
-    * Implement an effect that prompts the user for their name, and
-    * returns it.
-    */
+   * EXERCISE 30
+   *
+   * Implement an effect that prompts the user for their name, and
+   * returns it.
+   */
   lazy val getName: ZIO[Console, IOException, String] = ???
 
   /**
-    * EXERCISE 30
-    *
-    * Implement an effect that chooses a random word from the dictionary.
-    * The dictionary is `Dictionary.Dictionary`.
-    */
+   * EXERCISE 30
+   *
+   * Implement an effect that chooses a random word from the dictionary.
+   * The dictionary is `Dictionary.Dictionary`.
+   */
   lazy val chooseWord: ZIO[Random, Nothing, String] = ???
 
   /**
-    * EXERCISE 31
-    *
-    * Implement the main game loop, which gets choices from the user until
-    * the game is won or lost.
-    */
+   * EXERCISE 31
+   *
+   * Implement the main game loop, which gets choices from the user until
+   * the game is won or lost.
+   */
   def gameLoop(oldState: State): ZIO[Console, IOException, Unit] = ???
 
   def renderState(state: State): ZIO[Console, Nothing, Unit] = {
 
     /**
-      *
-      * f     n  c  t  o
-      *  -  -  -  -  -  -  -
-      *
-      * Guesses: a, z, y, x
-      *
-      */
+     *
+     * f     n  c  t  o
+     *  -  -  -  -  -  -  -
+     *
+     * Guesses: a, z, y, x
+     *
+     */
     val word =
       state.word.toList
         .map(c => if (state.guesses.contains(c)) s" $c " else "   ")
@@ -913,9 +925,9 @@ object Hangman extends App {
 
   sealed trait GuessResult
   object GuessResult {
-    case object Won extends GuessResult
-    case object Lost extends GuessResult
-    case object Correct extends GuessResult
+    case object Won       extends GuessResult
+    case object Lost      extends GuessResult
+    case object Correct   extends GuessResult
     case object Incorrect extends GuessResult
     case object Unchanged extends GuessResult
   }
@@ -928,27 +940,27 @@ object Hangman extends App {
     else GuessResult.Incorrect
 
   /**
-    * EXERCISE 32
-    *
-    * Implement hangman using `Dictionary.Dictionary` for the words,
-    * and the above helper functions.
-    */
+   * EXERCISE 32
+   *
+   * Implement hangman using `Dictionary.Dictionary` for the words,
+   * and the above helper functions.
+   */
   def run(args: List[String]): ZIO[ZEnv, Nothing, Int] =
     (for {
-      name <- getName
-      word <- chooseWord
+      name  <- getName
+      word  <- chooseWord
       state = State(name, Set(), word)
-      _ <- renderState(state)
-      _ <- gameLoop(state)
+      _     <- renderState(state)
+      _     <- gameLoop(state)
     } yield 0) orElse ZIO.succeed(1)
 }
 
 /**
-  * GRADUATION PROJECT
-  *
-  * Implement a game of tic tac toe using ZIO, then develop unit tests to
-  * demonstrate its correctness and testability.
-  */
+ * GRADUATION PROJECT
+ *
+ * Implement a game of tic tac toe using ZIO, then develop unit tests to
+ * demonstrate its correctness and testability.
+ */
 object TicTacToe extends App {
 
   import zio.console._
@@ -966,17 +978,17 @@ object TicTacToe extends App {
     case object O extends Mark
   }
 
-  final case class Board private(value: Vector[Vector[Option[Mark]]]) {
+  final case class Board private (value: Vector[Vector[Option[Mark]]]) {
 
     /**
-      * Retrieves the mark at the specified row/col.
-      */
+     * Retrieves the mark at the specified row/col.
+     */
     final def get(row: Int, col: Int): Option[Mark] =
       value.lift(row).flatMap(_.lift(col)).flatten
 
     /**
-      * Places a mark on the board at the specified row/col.
-      */
+     * Places a mark on the board at the specified row/col.
+     */
     final def place(row: Int, col: Int, mark: Mark): Option[Board] =
       if (row >= 0 && col >= 0 && row < 3 && col < 3)
         Some(
@@ -985,16 +997,16 @@ object TicTacToe extends App {
       else None
 
     /**
-      * Renders the board to a string.
-      */
+     * Renders the board to a string.
+     */
     def render: String =
       value
         .map(_.map(_.fold(" ")(_.render)).mkString(" ", " | ", " "))
         .mkString("\n---|---|---\n")
 
     /**
-      * Returns which mark won the game, if any.
-      */
+     * Returns which mark won the game, if any.
+     */
     final def won: Option[Mark] =
       if (wonBy(Mark.X)) Some(Mark.X)
       else if (wonBy(Mark.O)) Some(Mark.O)
@@ -1011,21 +1023,21 @@ object TicTacToe extends App {
         wonBy(0, 2, 1, 0, mark)
 
     private final def wonBy(
-                             row0: Int,
-                             col0: Int,
-                             rowInc: Int,
-                             colInc: Int,
-                             mark: Mark
-                           ): Boolean =
+      row0: Int,
+      col0: Int,
+      rowInc: Int,
+      colInc: Int,
+      mark: Mark
+    ): Boolean =
       extractLine(row0, col0, rowInc, colInc).collect { case Some(v) => v }.toList == List
         .fill(3)(mark)
 
     private final def extractLine(
-                                   row0: Int,
-                                   col0: Int,
-                                   rowInc: Int,
-                                   colInc: Int
-                                 ): Iterable[Option[Mark]] =
+      row0: Int,
+      col0: Int,
+      rowInc: Int,
+      colInc: Int
+    ): Iterable[Option[Mark]] =
       for {
         row <- (row0 to (row0 + rowInc * 2))
         col <- (col0 to (col0 + colInc * 2))
@@ -1035,10 +1047,10 @@ object TicTacToe extends App {
     final val empty = new Board(Vector.fill(3)(Vector.fill(3)(None)))
 
     def fromChars(
-                   first: Iterable[Char],
-                   second: Iterable[Char],
-                   third: Iterable[Char]
-                 ): Option[Board] =
+      first: Iterable[Char],
+      second: Iterable[Char],
+      third: Iterable[Char]
+    ): Option[Board] =
       if (first.size != 3 || second.size != 3 || third.size != 3) None
       else {
         def toMark(char: Char): Option[Mark] =
@@ -1068,8 +1080,8 @@ object TicTacToe extends App {
     .render
 
   /**
-    * The entry point to the game will be here.
-    */
+   * The entry point to the game will be here.
+   */
   def run(args: List[String]): ZIO[ZEnv, Nothing, Int] =
     putStrLn(TestBoard) as 0
 }
